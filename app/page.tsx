@@ -51,7 +51,7 @@ interface ProductData {
   error?: string
 }
 
-const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8", "#82CA9D", "#A4DE6C", "#D0ED57", "#FFA07A"]
+
 
 export default function EbaySearch() {
   const [searchTerm, setSearchTerm] = useState("")
@@ -157,13 +157,14 @@ export default function EbaySearch() {
         const count = match ? Number.parseInt(match[1]) : 0
         if (count > 0) {
           return {
-            name: item.title.slice(0, 20) + "...",
+            name: item.title.slice(0, 30) + "...",
+            fullName: item.title,
             bids: count,
           }
         }
         return null
       })
-      .filter((item): item is { name: string; bids: number } => item !== null)
+      .filter((item): item is { name: string; fullName: string; bids: number } => item !== null)
       .sort((a, b) => b.bids - a.bids)
       .slice(0, 10) // Top 10 items by bid count
 
@@ -343,13 +344,47 @@ export default function EbaySearch() {
                   <CardDescription>Items with the most bids indicate higher demand</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={400}>
+                  <ResponsiveContainer width="100%" height={500}>
                     <BarChart data={bidCountData}>
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" angle={-45} textAnchor="end" interval={0} height={70} />
+                      <XAxis 
+                        dataKey="name" 
+                        angle={-45} 
+                        textAnchor="end" 
+                        interval={0} 
+                        height={100}
+                        tick={{ fontSize: 12 }}
+                      />
                       <YAxis />
-                      <RechartsTooltip />
-                      <Bar dataKey="bids" fill="#8884d8" name="Number of Bids" />
+                      <RechartsTooltip 
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            return (
+                              <div className="bg-background border p-2 rounded shadow-sm">
+                                <p className="font-medium">{payload[0].payload.fullName || payload[0].payload.name}</p>
+                                <p>Bids: {payload[0].payload.bids}</p>
+                              </div>
+                            )
+                          }
+                          return null;
+                        }}
+                      />
+                      <Bar 
+                        dataKey="bids" 
+                        fill="#8884d8" 
+                        name="Number of Bids"
+                        onClick={(data) => {
+                          const index = auctions.findIndex(a => a.title.includes(data.name.replace('...', '')));
+                          if (index !== -1) {
+                            const tableRows = document.querySelectorAll('table tbody tr');
+                            if (tableRows[index]) {
+                              tableRows[index].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                              tableRows[index].classList.add('bg-accent');
+                              setTimeout(() => tableRows[index].classList.remove('bg-accent'), 1500);
+                            }
+                          }
+                        }} 
+                      />
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
@@ -417,9 +452,6 @@ export default function EbaySearch() {
                   </TableHeader>
                   <TableBody>
                     {auctions.map((auction, index) => {
-                      const hasProductData = productData.some(
-                        (p) => p.product_link === auction.product_link && !p.error,
-                      )
                       return (
                         <TableRow
                           key={index}
@@ -466,9 +498,13 @@ export default function EbaySearch() {
                     <div className="grid md:grid-cols-3 gap-4">
                       <div className="aspect-square bg-muted rounded overflow-hidden">
                         <img
-                          src={selectedAuction.product_image || "/placeholder.svg?height=200&width=200"}
+                          src={selectedAuction.product_image}
                           alt={selectedAuction.title}
                           className="w-full h-full object-contain"
+                          onError={(e) => {
+                            console.error(`Failed to load image: ${selectedAuction.product_image}`);
+                            e.currentTarget.src = "https://via.placeholder.com/200?text=No+Image";
+                          }}
                         />
                       </div>
                       <div className="md:col-span-2 grid gap-4">
@@ -556,9 +592,13 @@ export default function EbaySearch() {
                               {selectedProductData.images.map((img, i) => (
                                 <div key={i} className="aspect-square bg-muted rounded overflow-hidden">
                                   <img
-                                    src={img || "/placeholder.svg?height=100&width=100"}
+                                    src={img}
                                     alt={`Product image ${i + 1}`}
                                     className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      console.error(`Failed to load additional image: ${img}`);
+                                      e.currentTarget.src = "https://via.placeholder.com/100?text=No+Image";
+                                    }}
                                   />
                                 </div>
                               ))}
