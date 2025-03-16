@@ -707,7 +707,7 @@ export default function EbaySearch() {
       {loading && (
         <div className="flex flex-col items-center justify-center py-12 space-y-4">
           <Loader2 className="h-12 w-12 animate-spin text-primary" />
-          <h3 className="text-lg font-medium">Searching for "{searchTerm}"</h3>
+          <h3 className="text-lg font-medium">Searching for &quot;{searchTerm}&quot;</h3>
           <div className="w-full max-w-md">
             <Progress value={loadingProgress} className="h-2" />
           </div>
