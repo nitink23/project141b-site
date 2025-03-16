@@ -30,6 +30,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { debounce } from 'lodash'
 import { useTransition } from 'react'
+import Image from 'next/image'
 
 interface AuctionItem {
   title: string
@@ -89,10 +90,12 @@ const ProductImages = ({ images }: { images?: string[] }) => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
         {images.map((img, i) => (
           <div key={i} className="aspect-square bg-muted rounded overflow-hidden">
-            <img
+            <Image
               src={img}
               alt={`Product image ${i + 1}`}
               className="w-full h-full object-cover"
+              width={200}
+              height={200}
               onError={(e) => {
                 console.error(`Failed to load additional image: ${img}`);
                 e.currentTarget.src = "https://via.placeholder.com/100?text=No+Image";
@@ -163,9 +166,9 @@ export default function EbaySearch() {
   const [showFilterPanel, setShowFilterPanel] = useState(false)
   
   // State for chart data
-  const [priceHistogram, setPriceHistogram] = useState<any[]>([])
-  const [bidCountChartData, setBidCountChartData] = useState<any[]>([])
-  const [priceVsBidsData, setPriceVsBidsData] = useState<any[]>([])
+  const [priceHistogram, setPriceHistogram] = useState<Array<{range: string; count: number}>>([])
+  const [bidCountChartData, setBidCountChartData] = useState<Array<{name: string; fullName: string; bids: number}>>([])
+  const [priceVsBidsData, setPriceVsBidsData] = useState<Array<{title: string; price: number; bids: number}>>([])
   const [metrics, setMetrics] = useState({
     avgPrice: 0,
     medianPrice: 0,
@@ -177,7 +180,7 @@ export default function EbaySearch() {
   const [productVisualizations, setProductVisualizations] = useState<{
     type: string;
     title: string;
-    data: any[];
+    data: Array<{name: string; value: number}>;
   }>({
     type: "none",
     title: "",
@@ -203,33 +206,15 @@ export default function EbaySearch() {
   });
 
   // 3. Debounce filter changes to prevent excessive re-renders
-  const debouncedSetFilters = useCallback(
-    debounce((newFilters: {
-      priceRange: [number, number];
-      condition: string;
-      sortBy: string;
-    }) => {
-      setFilteringLoading(true);
-      setFilters(newFilters);
-      setTimeout(() => setFilteringLoading(false), 100);
-    }, 300),
-    []
-  );
-
-  const debouncedSetCustomFilters = useCallback(
-    debounce((newCustomFilters: {
-      field: string;
-      operator: string;
-      value: string;
-    }[]) => {
-      setFilteringLoading(true);
-      setCustomFilters(newCustomFilters);
-      setTimeout(() => setFilteringLoading(false), 100);
-    }, 300),
-    []
-  );
-
-  const [isPending, startTransition] = useTransition();
+  const debouncedSetFilters = useCallback((newFilters: {
+    priceRange: [number, number];
+    condition: string;
+    sortBy: string;
+  }) => {
+    setFilteringLoading(true);
+    setFilters(newFilters);
+    setTimeout(() => setFilteringLoading(false), 100);
+  }, [setFilteringLoading, setFilters]);
 
   const [page, setPage] = useState(1);
   const itemsPerPage = 20;
@@ -1206,10 +1191,12 @@ export default function EbaySearch() {
                   <div className="grid gap-6">
                     <div className="grid md:grid-cols-3 gap-4">
                       <div className="aspect-square bg-muted rounded overflow-hidden">
-                        <img
+                        <Image
                           src={selectedAuction.product_image}
                           alt={selectedAuction.title}
                           className="w-full h-full object-contain"
+                          width={400}
+                          height={400}
                           onError={(e) => {
                             console.error(`Failed to load image: ${selectedAuction.product_image}`);
                             e.currentTarget.src = "https://via.placeholder.com/200?text=No+Image";
