@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 
-export const maxDuration = 120; // Set max duration to 60 seconds for Vercel
+export const maxDuration = 60; // Set max duration to 60 seconds for Vercel
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -13,7 +13,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Search term is required" }, { status: 400 })
   }
 
-  console.log(`[Auctions API] Fetching data from external API for: "${searchTerm}"`)
+  console.log(`[Auctions API] Fetching data from external API for: "${searchTerm}"`);
   
   try {
     const apiUrl = `https://project141b.onrender.com/auctions?search_term=${encodeURIComponent(searchTerm)}`
