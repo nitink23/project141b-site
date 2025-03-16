@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState, useCallback, useMemo, useEffect, useRef } from "react"
-import { Search, Info, Clock, Truck, Award, User, Loader2, X, Filter, PlusCircle } from "lucide-react"
+import { Search, Info, Clock, Truck, Award, User, Loader2, X, Filter, PlusCircle, Download } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -684,6 +684,62 @@ export default function EbaySearch() {
     setTimeout(() => setFilteringLoading(false), 100);
   };
 
+  const downloadAuctionsCSV = () => {
+    // Only proceed if there are auctions to download
+    if (filteredAuctions.length === 0) return;
+    
+    // Define the CSV headers
+    const headers = [
+      'Title',
+      'Price',
+      'Bids',
+      'Time Left',
+      'Seller',
+      'Rating',
+      'Condition',
+      'Delivery Cost',
+      'Product Link'
+    ];
+    
+    // Convert auction data to CSV rows
+    const csvRows = filteredAuctions.map(auction => {
+      return [
+        `"${auction.title.replace(/"/g, '""')}"`, // Escape quotes in title
+        auction.price,
+        auction.bid_count,
+        formatTimeLeft(auction.time_left),
+        auction.seller_name,
+        auction.seller_rating,
+        auction.condition || 'Not specified',
+        auction.delivery_cost || 'Not specified',
+        auction.product_link
+      ].join(',');
+    });
+    
+    // Combine headers and rows
+    const csvContent = [
+      headers.join(','),
+      ...csvRows
+    ].join('\n');
+    
+    // Create a Blob with the CSV data
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    
+    // Create a download link
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    
+    // Set link properties
+    link.setAttribute('href', url);
+    link.setAttribute('download', `ebay-auctions-${searchTerm.replace(/\s+/g, '-')}.csv`);
+    link.style.visibility = 'hidden';
+    
+    // Add to document, trigger download, and clean up
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="container mx-auto py-8 px-4">
      
@@ -1099,7 +1155,18 @@ export default function EbaySearch() {
 
           <Card>
             <CardHeader>
+              <div className="flex items-center justify-between">
               <CardTitle>Auction Results</CardTitle>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={downloadAuctionsCSV}
+                  disabled={filteredAuctions.length === 0}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Download CSV
+                </Button>
+              </div>
               <CardDescription>
                 Found {filteredAuctions.length} auctions for &quot;{searchTerm}&quot;
                 {filteredAuctions.length < searchResults.auctions.length && (
