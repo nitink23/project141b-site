@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 
+export const maxDuration = 60; // Set max duration to 60 seconds for Vercel
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const searchTerm = searchParams.get("search_term")
@@ -18,7 +20,20 @@ export async function GET(request: Request) {
     console.log(`[Auctions API] Making request to: ${apiUrl}`)
     
     const startTime = Date.now()
-    const response = await fetch(apiUrl)
+    
+    // Use AbortController with a longer timeout (30 seconds)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+    
+    const response = await fetch(apiUrl, {
+      signal: controller.signal,
+      // Add cache: 'no-store' to prevent caching issues
+      cache: 'no-store'
+    });
+    
+    // Clear the timeout
+    clearTimeout(timeoutId);
+    
     const responseTime = Date.now() - startTime
     
     console.log(`[Auctions API] Received response in ${responseTime}ms with status: ${response.status}`)
@@ -31,8 +46,16 @@ export async function GET(request: Request) {
     console.log(`[Auctions API] Successfully parsed JSON response with ${data.length} items`)
     
     return NextResponse.json(data)
-  } catch (error) {
+  } catch (error: any) {
     console.error("[Auctions API] Error occurred:", error)
+    
+    // Check if it's an abort error (timeout)
+    if (error.name === 'AbortError') {
+      return NextResponse.json({ 
+        error: "Request timed out. The backend service may be starting up after inactivity. Please try again in a minute." 
+      }, { status: 504 })
+    }
+    
     return NextResponse.json({ error: "Failed to fetch auction data" }, { status: 500 })
   }
 }
