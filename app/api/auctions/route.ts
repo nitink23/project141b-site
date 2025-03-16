@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 
-export const maxDuration = 60; // Set max duration to 60 seconds for Vercel
+export const maxDuration = 120; // Set max duration to 60 seconds for Vercel
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -46,17 +46,20 @@ export async function GET(request: Request) {
     console.log(`[Auctions API] Successfully parsed JSON response with ${data.length} items`)
     
     return NextResponse.json(data)
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[Auctions API] Error occurred:", error)
     
     // Check if it's an abort error (timeout)
-    if (error.name === 'AbortError') {
+    if (error instanceof Error && error.name === 'AbortError') {
       return NextResponse.json({ 
         error: "Request timed out. The backend service may be starting up after inactivity. Please try again in a minute." 
       }, { status: 504 })
     }
     
-    return NextResponse.json({ error: "Failed to fetch auction data" }, { status: 500 })
+    return NextResponse.json({ 
+      error: "Failed to fetch auction data", 
+      message: error instanceof Error ? error.message : String(error)
+    }, { status: 500 })
   }
 }
 
