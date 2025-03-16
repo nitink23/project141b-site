@@ -219,8 +219,90 @@ export default function EbaySearch() {
   const [page, setPage] = useState(1);
   const itemsPerPage = 20;
 
-  const totalPages = Math.ceil(searchResults.auctions.length / itemsPerPage);
-  const paginatedAuctions = searchResults.auctions.slice(
+  // The filteredAuctions useMemo is here
+  const filteredAuctions = useMemo(() => {
+    if (searchResults.auctions.length === 0) return []
+    
+    // Update last filter settings
+    lastFilterSettings.current = {
+      filters: { ...filters },
+      customFilters: [...customFilters]
+    };
+    
+    // Start filtering
+    return searchResults.auctions.filter(auction => {
+      const price = parseFloat(auction.price.replace(/[^0-9.]/g, ''))
+      const bids = parseInt(auction.bid_count.match(/(\d+)/)?.[1] || "0")
+      
+      // Apply standard filters
+      if (price < filters.priceRange[0] || price > filters.priceRange[1]) return false
+      if (filters.condition !== "all" && 
+          (!auction.condition || !auction.condition.toLowerCase().includes(filters.condition.toLowerCase()))) {
+        return false
+      }
+      
+      // Apply custom filters
+      for (const filter of customFilters) {
+        let fieldValue = ""
+        
+        // Get the field value based on the filter field
+        switch (filter.field) {
+          case "title":
+            fieldValue = auction.title
+            break
+          case "seller":
+            fieldValue = auction.seller_name
+            break
+          case "price":
+            fieldValue = price.toString()
+            break
+          case "bids":
+            fieldValue = bids.toString()
+            break
+          default:
+            fieldValue = auction[filter.field as keyof AuctionItem]?.toString() || ""
+        }
+        
+        // Apply the operator
+        switch (filter.operator) {
+          case "contains":
+            if (!fieldValue.toLowerCase().includes(filter.value.toLowerCase())) return false
+            break
+          case "equals":
+            if (fieldValue.toLowerCase() !== filter.value.toLowerCase()) return false
+            break
+          case "greater":
+            if (parseFloat(fieldValue) <= parseFloat(filter.value)) return false
+            break
+          case "less":
+            if (parseFloat(fieldValue) >= parseFloat(filter.value)) return false
+            break
+        }
+      }
+      
+      return true
+    }).sort((a, b) => {
+      // Apply sorting
+      switch (filters.sortBy) {
+        case "price-asc":
+          return parseFloat(a.price.replace(/[^0-9.]/g, '')) - parseFloat(b.price.replace(/[^0-9.]/g, ''))
+        case "price-desc":
+          return parseFloat(b.price.replace(/[^0-9.]/g, '')) - parseFloat(a.price.replace(/[^0-9.]/g, ''))
+        case "bids-desc":
+          const bidsA = parseInt(a.bid_count.match(/(\d+)/)?.[1] || "0")
+          const bidsB = parseInt(b.bid_count.match(/(\d+)/)?.[1] || "0")
+          return bidsB - bidsA
+        case "time-asc":
+          return a.time_left.localeCompare(b.time_left)
+        default:
+          return 0
+      }
+    })
+  }, [searchResults.auctions, filters, customFilters])
+
+  // Add these lines AFTER the filteredAuctions declaration
+  const totalPages = Math.ceil(filteredAuctions.length / itemsPerPage);
+  const paginatedAuctions = filteredAuctions.slice(
     (page - 1) * itemsPerPage,
     page * itemsPerPage
   );
@@ -324,86 +406,6 @@ export default function EbaySearch() {
       count,
     }))
   }, [])
-
-  const filteredAuctions = useMemo(() => {
-    if (searchResults.auctions.length === 0) return []
-    
-    // Update last filter settings
-    lastFilterSettings.current = {
-      filters: { ...filters },
-      customFilters: [...customFilters]
-    };
-    
-    // Start filtering
-    return searchResults.auctions.filter(auction => {
-      const price = parseFloat(auction.price.replace(/[^0-9.]/g, ''))
-      const bids = parseInt(auction.bid_count.match(/(\d+)/)?.[1] || "0")
-      
-      // Apply standard filters
-      if (price < filters.priceRange[0] || price > filters.priceRange[1]) return false
-      if (filters.condition !== "all" && 
-          (!auction.condition || !auction.condition.toLowerCase().includes(filters.condition.toLowerCase()))) {
-        return false
-      }
-      
-      // Apply custom filters
-      for (const filter of customFilters) {
-        let fieldValue = ""
-        
-        // Get the field value based on the filter field
-        switch (filter.field) {
-          case "title":
-            fieldValue = auction.title
-            break
-          case "seller":
-            fieldValue = auction.seller_name
-            break
-          case "price":
-            fieldValue = price.toString()
-            break
-          case "bids":
-            fieldValue = bids.toString()
-            break
-          default:
-            fieldValue = auction[filter.field as keyof AuctionItem]?.toString() || ""
-        }
-        
-        // Apply the operator
-        switch (filter.operator) {
-          case "contains":
-            if (!fieldValue.toLowerCase().includes(filter.value.toLowerCase())) return false
-            break
-          case "equals":
-            if (fieldValue.toLowerCase() !== filter.value.toLowerCase()) return false
-            break
-          case "greater":
-            if (parseFloat(fieldValue) <= parseFloat(filter.value)) return false
-            break
-          case "less":
-            if (parseFloat(fieldValue) >= parseFloat(filter.value)) return false
-            break
-        }
-      }
-      
-      return true
-    }).sort((a, b) => {
-      // Apply sorting
-      switch (filters.sortBy) {
-        case "price-asc":
-          return parseFloat(a.price.replace(/[^0-9.]/g, '')) - parseFloat(b.price.replace(/[^0-9.]/g, ''))
-        case "price-desc":
-          return parseFloat(b.price.replace(/[^0-9.]/g, '')) - parseFloat(a.price.replace(/[^0-9.]/g, ''))
-        case "bids-desc":
-          const bidsA = parseInt(a.bid_count.match(/(\d+)/)?.[1] || "0")
-          const bidsB = parseInt(b.bid_count.match(/(\d+)/)?.[1] || "0")
-          return bidsB - bidsA
-        case "time-asc":
-          return a.time_left.localeCompare(b.time_left)
-        default:
-          return 0
-      }
-    })
-  }, [searchResults.auctions, filters, customFilters])
 
   const prepareChartData = useCallback(() => {
     // Extract prices (remove currency symbols and convert to numbers)
@@ -602,14 +604,21 @@ export default function EbaySearch() {
   };
 
   const removeOutliers = () => {
-    // Extract prices and bids
-    const prices = searchResults.auctions
+    // Extract prices and bids from the current filtered auctions instead of all auctions
+    const prices = filteredAuctions
       .map(item => parseFloat(item.price.replace(/[^0-9.]/g, '')))
       .filter(price => !isNaN(price));
       
-    const bids = searchResults.auctions
+    const bids = filteredAuctions
       .map(item => parseInt(item.bid_count.match(/(\d+)/)?.[1] || "0"))
       .filter(bid => !isNaN(bid));
+    
+    // Only proceed if we have enough data points
+    if (prices.length < 4 || bids.length < 4) {
+      // Show a message or alert that there's not enough data for outlier detection
+      console.log("Not enough data points for outlier detection");
+      return;
+    }
     
     // Calculate quartiles and IQR
     const priceStats = calculateQuartiles(prices);
@@ -647,6 +656,9 @@ export default function EbaySearch() {
     if (!showFilterPanel) {
       setShowFilterPanel(true);
     }
+    
+    // Reset to page 1 when applying outlier removal
+    setPage(1);
   };
 
   const handleFilterChange = (newFilters: typeof filters | {
@@ -951,12 +963,12 @@ export default function EbaySearch() {
             </TabsList>
             
             <TabsContent value="distributions">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Price Distribution</CardTitle>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Price Distribution</CardTitle>
                   <CardDescription>Histogram of prices across filtered auctions</CardDescription>
-                </CardHeader>
-                <CardContent>
+                  </CardHeader>
+                  <CardContent>
                   {chartLoading ? (
                     <div className="flex flex-col items-center justify-center h-[300px]">
                       <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
@@ -985,17 +997,17 @@ export default function EbaySearch() {
                       </BarChart>
                     </ResponsiveContainer>
                   )}
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
             </TabsContent>
             
             <TabsContent value="correlation">
-              <Card>
-                <CardHeader>
+                <Card>
+                  <CardHeader>
                   <CardTitle>Price vs. Bids Analysis</CardTitle>
                   <CardDescription>Relationship between item prices and bidding activity</CardDescription>
-                </CardHeader>
-                <CardContent>
+                  </CardHeader>
+                  <CardContent>
                   <ResponsiveContainer width="100%" height={400}>
                     <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
                       <CartesianGrid />
@@ -1030,9 +1042,9 @@ export default function EbaySearch() {
                       <Legend />
                       <Scatter name="Auctions" data={priceVsBidsData} fill="#8884d8" />
                     </ScatterChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
             </TabsContent>
             
             <TabsContent value="top-bids">
@@ -1089,7 +1101,10 @@ export default function EbaySearch() {
             <CardHeader>
               <CardTitle>Auction Results</CardTitle>
               <CardDescription>
-                Found {searchResults.auctions.length} auctions for &quot;{searchTerm}&quot;
+                Found {filteredAuctions.length} auctions for &quot;{searchTerm}&quot;
+                {filteredAuctions.length < searchResults.auctions.length && (
+                  <span className="text-primary"> (filtered from {searchResults.auctions.length} total results)</span>
+                )}
                 {productLoading && " - Loading detailed product data..."}
               </CardDescription>
             </CardHeader>
@@ -1100,51 +1115,51 @@ export default function EbaySearch() {
                   <p className="text-sm text-muted-foreground">Filtering results...</p>
                 </div>
               ) : (
-                <div className="rounded-md border overflow-hidden">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[30%]">Title</TableHead>
-                        <TableHead>Price</TableHead>
-                        <TableHead className="hidden md:table-cell">Bids</TableHead>
-                        <TableHead className="hidden md:table-cell">Time Left</TableHead>
-                        <TableHead className="hidden lg:table-cell">Seller</TableHead>
-                        <TableHead className="hidden lg:table-cell">Rating</TableHead>
-                        <TableHead className="w-[80px]">Details</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
+              <div className="rounded-md border overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[30%]">Title</TableHead>
+                      <TableHead>Price</TableHead>
+                      <TableHead className="hidden md:table-cell">Bids</TableHead>
+                      <TableHead className="hidden md:table-cell">Time Left</TableHead>
+                      <TableHead className="hidden lg:table-cell">Seller</TableHead>
+                      <TableHead className="hidden lg:table-cell">Rating</TableHead>
+                      <TableHead className="w-[80px]">Details</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                       {paginatedAuctions.map((auction, index) => {
-                        return (
-                          <TableRow
-                            key={index}
-                            className="cursor-pointer hover:bg-muted/50"
+                      return (
+                        <TableRow
+                          key={index}
+                          className="cursor-pointer hover:bg-muted/50"
                             onClick={() => handleAuctionSelect(auction)}
-                          >
-                            <TableCell className="font-medium">{auction.title}</TableCell>
-                            <TableCell>{auction.price}</TableCell>
-                            <TableCell className="hidden md:table-cell">{auction.bid_count}</TableCell>
-                            <TableCell className="hidden md:table-cell">{formatTimeLeft(auction.time_left)}</TableCell>
-                            <TableCell className="hidden lg:table-cell">{auction.seller_name}</TableCell>
-                            <TableCell className="hidden lg:table-cell">{auction.seller_rating}</TableCell>
-                            <TableCell>
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="icon">
-                                      <Info className="h-4 w-4" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>View auction details</TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            </TableCell>
-                          </TableRow>
-                        )
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
+                        >
+                          <TableCell className="font-medium">{auction.title}</TableCell>
+                          <TableCell>{auction.price}</TableCell>
+                          <TableCell className="hidden md:table-cell">{auction.bid_count}</TableCell>
+                          <TableCell className="hidden md:table-cell">{formatTimeLeft(auction.time_left)}</TableCell>
+                          <TableCell className="hidden lg:table-cell">{auction.seller_name}</TableCell>
+                          <TableCell className="hidden lg:table-cell">{auction.seller_rating}</TableCell>
+                          <TableCell>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button variant="ghost" size="icon">
+                                    <Info className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>View auction details</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
               )}
             </CardContent>
           </Card>
