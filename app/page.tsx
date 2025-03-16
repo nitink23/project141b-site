@@ -28,8 +28,6 @@ import { Progress } from "@/components/ui/progress"
 import { Slider } from "@/components/ui/slider"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { debounce } from 'lodash'
-import { useTransition } from 'react'
 import Image from 'next/image'
 
 interface AuctionItem {
@@ -120,6 +118,7 @@ declare global {
 }
 
 // 4. Implement chunked processing for large datasets
+/*
 const processInChunks = (items: AuctionItem[], chunkSize: number, processChunk: (chunk: AuctionItem[]) => void, onComplete: () => void) => {
   let index = 0;
   
@@ -138,6 +137,7 @@ const processInChunks = (items: AuctionItem[], chunkSize: number, processChunk: 
   
   doChunk();
 };
+*/
 
 export default function EbaySearch() {
   const [searchTerm, setSearchTerm] = useState("")
@@ -327,12 +327,6 @@ export default function EbaySearch() {
 
   const filteredAuctions = useMemo(() => {
     if (searchResults.auctions.length === 0) return []
-    
-    // Check if filters have changed
-    const currentFilters = JSON.stringify(filters);
-    const currentCustomFilters = JSON.stringify(customFilters);
-    const lastFilters = JSON.stringify(lastFilterSettings.current.filters);
-    const lastCustomFilters = JSON.stringify(lastFilterSettings.current.customFilters);
     
     // Update last filter settings
     lastFilterSettings.current = {
@@ -1095,7 +1089,7 @@ export default function EbaySearch() {
             <CardHeader>
               <CardTitle>Auction Results</CardTitle>
               <CardDescription>
-                Found {searchResults.auctions.length} auctions for "{searchTerm}"
+                Found {searchResults.auctions.length} auctions for &quot;{searchTerm}&quot;
                 {productLoading && " - Loading detailed product data..."}
               </CardDescription>
             </CardHeader>
