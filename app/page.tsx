@@ -779,9 +779,19 @@ export default function EbaySearch() {
           <div className="w-full max-w-md">
             <Progress value={loadingProgress} className="h-2" />
           </div>
-          <p className="text-sm text-muted-foreground">
-            {loadingProgress < 100 ? "Fetching results..." : "Processing data..."}
-          </p>
+          <div className="flex items-center justify-center gap-2">
+            {loading && (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <p>
+                  Fetching... {" "}
+                  <span className="text-muted-foreground text-sm">
+                    (If this takes longer than usual, the server may be starting up after inactivity refresh the page and search again if needed) 
+                  </span>
+                </p>
+              </>
+            )}
+          </div>
         </div>
       )}
 
