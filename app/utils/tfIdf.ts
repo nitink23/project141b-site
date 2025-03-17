@@ -5,12 +5,15 @@ interface TfIdfResult {
   frequency: number;
 }
 
-export function calculateTfIdf(auctions: any[]): TfIdfResult[] {
+export function calculateTfIdf(auctions: Array<{
+  title: string;
+  price: string;
+}>): TfIdfResult[] {
   // Preprocess titles to remove common words and special characters
   const stopWords = new Set(['the', 'and', 'or', 'a', 'an', 'in', 'on', 'at', 'for', 'to', 'of', 'with', 'by']);
   
   // Process all titles
-  const processedTitles = auctions.map(auction => {
+  const processedTitles = auctions.map((auction: {title: string}) => {
     return auction.title.toLowerCase()
       .replace(/[^\w\s]/g, '')
       .split(' ')

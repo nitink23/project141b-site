@@ -337,11 +337,10 @@ export default function EbaySearch() {
     e.preventDefault();
     if (!searchTerm.trim()) return;
     
-    // Set hasSearched to true when search is performed
     setHasSearched(true);
-    
     setLoading(true);
     setLoadingProgress(0);
+    setError(null); // Clear any previous errors
     
     // Reset filters when performing a new search
     setFilters({
@@ -364,31 +363,27 @@ export default function EbaySearch() {
     try {
       // Use the auctions endpoint with the search term
       const response = await fetch(`/api/auctions?search_term=${encodeURIComponent(searchTerm)}`);
+      
+      // Check for timeout or error status
+      if (!response.ok) {
+        if (response.status === 504 || response.status === 408) {
+          throw new Error("SERVER_TIMEOUT");
+        }
+        throw new Error(`Server responded with status: ${response.status}`);
+      }
+      
       const data = await response.json();
 
-      // Check if the response is empty or invalid
+      // Check if the response is empty
       if (!data || (Array.isArray(data) && data.length === 0) || 
           (typeof data === 'object' && Object.keys(data).length === 0)) {
-        
-        clearInterval(progressInterval);
-        setLoadingProgress(100);
-        
-        // Show reload message
-        setError("Received empty response. The server may need to be restarted. Please reload the page and try again.");
-        
-        setTimeout(() => {
-          setLoading(false);
-          setLoadingProgress(0);
-        }, 500);
-        
-        return;
+        throw new Error("EMPTY_RESPONSE");
       }
 
       if (Array.isArray(data)) {
-        // Store raw data in ref
+        // Process data as normal
         rawAuctionData.current = data;
         
-        // Create mock product data immediately instead of making another API call
         const mockProductData = data.map(item => ({
           product_link: item.product_link,
           images: [],
@@ -397,40 +392,41 @@ export default function EbaySearch() {
           item_features: {},
         }));
         
-        // Update state once with both auction and product data
         setSearchResults({
           auctions: data,
           productData: mockProductData
         });
 
-        clearInterval(progressInterval);
-        setLoadingProgress(100);
-        
-        setTimeout(() => {
-          setLoading(false);
-          setLoadingProgress(0);
-        }, 500);
-
         if (data.length > 0) {
-          const tfIdfResults = calculateTfIdf(data);
+          const tfIdfResults = calculateTfIdf(data as AuctionItem[]);
           setTfIdfResults(tfIdfResults);
         }
       } else {
-        console.error("Unexpected response format:", data);
-        setError("Received unexpected data format. Please reload the page and try again.");
+        throw new Error("INVALID_FORMAT");
       }
     } catch (error) {
       console.error("Auction search error:", error);
+      
+      // Handle specific error types
+      if (error.message === "SERVER_TIMEOUT" || error.message.includes("AbortError")) {
+        setError("The server took too long to respond. This usually happens when the server is starting up after being inactive. Please reload the page and try again if needed.");
+      } else if (error.message === "EMPTY_RESPONSE") {
+        setError("Received empty data from the server. Please reload the page and try again.");
+      } else if (error.message === "INVALID_FORMAT") {
+        setError("Received unexpected data format. Please reload the page and try again.");
+      } else {
+        setError("Error fetching auction data. Please reload the page and try again.");
+      }
+    } finally {
       clearInterval(progressInterval);
       setLoadingProgress(100);
-      setError("Error fetching auction data. Please reload the page and try again.");
       
       setTimeout(() => {
         setLoading(false);
         setLoadingProgress(0);
       }, 500);
     }
-  }, [searchTerm, setLoading, setLoadingProgress, setFilters, setCustomFilters, setSearchResults, setHasSearched, setError]);
+  }, [searchTerm, setLoading, setLoadingProgress, setFilters, setCustomFilters, setSearchResults, setHasSearched]);
 
   const prepareHistogramData = useCallback((data: number[], bins: number, prefix = "") => {
     if (data.length === 0) return []
@@ -838,6 +834,26 @@ export default function EbaySearch() {
             )}
           </div>
         </div>
+      )}
+
+      {error && (
+        <Card className="mb-4 border-red-500">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 text-red-500">
+              <div className="flex-1">
+                <p>{error} Reload the page this is becuase of server startup time</p>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="mt-2"
+                  onClick={() => window.location.reload()}
+                >
+                  Reload Page
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {searchResults.auctions.length > 0 && (
