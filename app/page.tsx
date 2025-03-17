@@ -819,7 +819,7 @@ export default function EbaySearch() {
           <CardTitle>eBay Auction Search & Analysis</CardTitle>
           {!hasSearched && (
             <CardDescription className="text-red-500">
-              Search for auctions on eBay and analyze market data for resellers (RUNNING ON THE FIRST TIME WILL TAKE A WHILE DUE TO SERVER SIDE STARTUP AND WILL REQUIREE A REFRESH OF THE PAGE SUBSEQUENT RUNS WILL BE FASTER)
+              Search for auctions on eBay and analyze market data for resellers (RUNNING THE FIRST TIME WILL TAKE UP TO 2 MINUTES TO LOAD AND WORK DUE TO SERVER SIDE STARTUP AND WILL REQUIRE A REFRESH OF THE PAGE SUBSEQUENT RUNS WILL BE FASTER)
             </CardDescription>
           )}
         </CardHeader>
