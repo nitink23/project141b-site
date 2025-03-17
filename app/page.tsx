@@ -759,7 +759,7 @@ export default function EbaySearch() {
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 type="text"
-                placeholder="Search for auctions..."
+                placeholder="Search for categories like 'iphone' or 'airpods' or even 'macbook' or 'shoes' etc ......."
                 className="pl-8"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
