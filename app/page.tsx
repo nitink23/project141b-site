@@ -29,6 +29,8 @@ import { Slider } from "@/components/ui/slider"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import Image from 'next/image'
+import { calculateTfIdf } from './utils/tfIdf'
+import { PriceImpactChart } from './components/PriceImpactChart'
 
 interface AuctionItem {
   title: string
@@ -138,6 +140,14 @@ const processInChunks = (items: AuctionItem[], chunkSize: number, processChunk: 
   doChunk();
 };
 */
+
+// Add this interface definition at the top of your file
+interface TfIdfResult {
+  term: string;
+  tfIdf: number;
+  averagePrice: number;
+  frequency: number;
+}
 
 export default function EbaySearch() {
   const [searchTerm, setSearchTerm] = useState("")
@@ -313,7 +323,16 @@ export default function EbaySearch() {
   // Add hasSearched state for the warning card
   const [hasSearched, setHasSearched] = useState(false);
 
-  // Fix the handleSearch function to include all dependencies and set hasSearched
+  // Now the state declaration will work correctly
+  const [tfIdfResults, setTfIdfResults] = useState<TfIdfResult[]>([]);
+
+  // Add a state to track the current active tab
+  const [activeTab, setActiveTab] = useState("distributions");
+
+  // Add a state to track errors
+  const [error, setError] = useState<string | null>(null);
+
+  // Modify the handleSearch function
   const handleSearch = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchTerm.trim()) return;
@@ -347,6 +366,24 @@ export default function EbaySearch() {
       const response = await fetch(`/api/auctions?search_term=${encodeURIComponent(searchTerm)}`);
       const data = await response.json();
 
+      // Check if the response is empty or invalid
+      if (!data || (Array.isArray(data) && data.length === 0) || 
+          (typeof data === 'object' && Object.keys(data).length === 0)) {
+        
+        clearInterval(progressInterval);
+        setLoadingProgress(100);
+        
+        // Show reload message
+        setError("Received empty response. The server may need to be restarted. Please reload the page and try again.");
+        
+        setTimeout(() => {
+          setLoading(false);
+          setLoadingProgress(0);
+        }, 500);
+        
+        return;
+      }
+
       if (Array.isArray(data)) {
         // Store raw data in ref
         rawAuctionData.current = data;
@@ -373,19 +410,27 @@ export default function EbaySearch() {
           setLoading(false);
           setLoadingProgress(0);
         }, 500);
+
+        if (data.length > 0) {
+          const tfIdfResults = calculateTfIdf(data);
+          setTfIdfResults(tfIdfResults);
+        }
       } else {
         console.error("Unexpected response format:", data);
+        setError("Received unexpected data format. Please reload the page and try again.");
       }
     } catch (error) {
       console.error("Auction search error:", error);
       clearInterval(progressInterval);
       setLoadingProgress(100);
+      setError("Error fetching auction data. Please reload the page and try again.");
+      
       setTimeout(() => {
         setLoading(false);
         setLoadingProgress(0);
       }, 500);
     }
-  }, [searchTerm, setLoading, setLoadingProgress, setFilters, setCustomFilters, setSearchResults, setHasSearched]);
+  }, [searchTerm, setLoading, setLoadingProgress, setFilters, setCustomFilters, setSearchResults, setHasSearched, setError]);
 
   const prepareHistogramData = useCallback((data: number[], bins: number, prefix = "") => {
     if (data.length === 0) return []
@@ -1021,11 +1066,16 @@ export default function EbaySearch() {
             </CardContent>
           </Card>
 
-          <Tabs defaultValue="distributions" className="mb-8">
-            <TabsList className="grid w-full grid-cols-3">
+          <Tabs 
+            defaultValue="distributions" 
+            className="mb-8"
+            onValueChange={(value) => setActiveTab(value)}
+          >
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="distributions">Price Distribution</TabsTrigger>
               <TabsTrigger value="correlation">Price vs. Bids Analysis</TabsTrigger>
               <TabsTrigger value="top-bids">Top Items by Bids</TabsTrigger>
+              <TabsTrigger value="keywords">Keyword Analysis</TabsTrigger>
             </TabsList>
             
             <TabsContent value="distributions">
@@ -1161,12 +1211,41 @@ export default function EbaySearch() {
                 </CardContent>
               </Card>
             </TabsContent>
+            
+            <TabsContent value="keywords">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Title Keyword Analysis</CardTitle>
+                  <CardDescription>
+                    This chart shows which keywords in auction titles tend to correlate with higher prices.
+                    Bars show average price for listings containing each term.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    {tfIdfResults.slice(0, 3).map((result, index) => (
+                      <div key={index} className="bg-muted rounded-lg p-4">
+                        <div className="text-muted-foreground text-sm">Top Keyword {index + 1}</div>
+                        <div className="text-xl font-bold">{result.term}</div>
+                        <div className="text-sm mt-1">Avg Price: ${result.averagePrice.toFixed(2)}</div>
+                        <div className="text-sm">Frequency: {result.frequency} listings</div>
+                              </div>
+                    ))}
+                  </div>
+                  <PriceImpactChart tfIdfResults={tfIdfResults} />
+                </CardContent>
+              </Card>
+            </TabsContent>
           </Tabs>
 
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
-              <CardTitle>Auction Results</CardTitle>
+                <CardTitle>
+                  {activeTab === "keywords" 
+                    ? "Auctions with High-Value Keywords" 
+                    : "Auction Results"}
+                </CardTitle>
                 <Button 
                   variant="outline" 
                   size="sm"
@@ -1178,10 +1257,20 @@ export default function EbaySearch() {
                 </Button>
               </div>
               <CardDescription>
-                Found {filteredAuctions.length} auctions for &quot;{searchTerm}&quot;
-                {filteredAuctions.length < searchResults.auctions.length && (
-                  <span className="text-primary"> (filtered from {searchResults.auctions.length} total results)</span>
-                )}
+                {activeTab === "keywords" 
+                  ? `Showing auctions containing high-value keywords (${
+                      filteredAuctions.filter(auction => 
+                        tfIdfResults.slice(0, 5).some(result => 
+                          auction.title.toLowerCase().includes(result.term.toLowerCase())
+                        )
+                      ).length
+                    } items)`
+                  : `Found ${filteredAuctions.length} auctions for "${searchTerm}"${
+                      filteredAuctions.length < searchResults.auctions.length 
+                        ? ` (filtered from ${searchResults.auctions.length} total results)` 
+                        : ""
+                    }`
+                }
                 {productLoading && " - Loading detailed product data..."}
               </CardDescription>
             </CardHeader>
@@ -1206,14 +1295,47 @@ export default function EbaySearch() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                      {paginatedAuctions.map((auction, index) => {
+                      {paginatedAuctions
+                        .filter(auction => {
+                          // If keyword tab is active, only show auctions with high-value keywords
+                          if (activeTab === "keywords") {
+                            return tfIdfResults.slice(0, 5).some(result => 
+                              auction.title.toLowerCase().includes(result.term.toLowerCase())
+                            );
+                          }
+                          // Otherwise show all auctions
+                          return true;
+                        })
+                        .map((auction, index) => {
+                          // Check if the auction title contains any of the top keywords
+                          const matchedKeywords = tfIdfResults.slice(0, 5).filter(result => 
+                            auction.title.toLowerCase().includes(result.term.toLowerCase())
+                          );
+                          
+                          const hasHighValueKeyword = matchedKeywords.length > 0;
+                          
                       return (
                         <TableRow
                           key={index}
-                          className="cursor-pointer hover:bg-muted/50"
-                            onClick={() => handleAuctionSelect(auction)}
-                        >
-                          <TableCell className="font-medium">{auction.title}</TableCell>
+                              className={`cursor-pointer hover:bg-muted/50 ${
+                                hasHighValueKeyword && activeTab === "keywords" 
+                                  ? 'bg-amber-50 dark:bg-amber-950/20' 
+                                  : ''
+                              }`}
+                              onClick={() => handleAuctionSelect(auction)}
+                            >
+                              <TableCell className="font-medium">
+                                {auction.title}
+                                {hasHighValueKeyword && activeTab === "keywords" && (
+                                  <div className="mt-1">
+                                    {matchedKeywords.map((keyword, kidx) => (
+                                      <Badge key={kidx} variant="outline" className="mr-1 bg-amber-100 dark:bg-amber-900/30">
+                                        {keyword.term}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                )}
+                              </TableCell>
                           <TableCell>{auction.price}</TableCell>
                           <TableCell className="hidden md:table-cell">{auction.bid_count}</TableCell>
                           <TableCell className="hidden md:table-cell">{formatTimeLeft(auction.time_left)}</TableCell>
@@ -1232,7 +1354,7 @@ export default function EbaySearch() {
                             </TooltipProvider>
                           </TableCell>
                         </TableRow>
-                      )
+                          );
                     })}
                   </TableBody>
                 </Table>
@@ -1266,7 +1388,7 @@ export default function EbaySearch() {
           </div>
 
           <Dialog open={!!selectedAuction} onOpenChange={(open) => !open && setSelectedAuction(null)}>
-            <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+            <DialogContent className="max-w-[95vw] w-[1000px] max-h-[90vh] overflow-y-auto">
               {selectedAuction && (
                 <>
                   <DialogHeader>
@@ -1274,7 +1396,7 @@ export default function EbaySearch() {
                     <DialogDescription>Detailed information about this auction</DialogDescription>
                   </DialogHeader>
 
-                  <div className="grid gap-6">
+                  <div className="grid gap-4">
                     <div className="grid md:grid-cols-3 gap-4">
                       <div className="aspect-square bg-muted rounded overflow-hidden">
                         <Image
