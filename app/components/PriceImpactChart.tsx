@@ -6,8 +6,20 @@ import {
   BarElement,
   Title,
   Tooltip,
-  Legend
+  Legend,
+  ChartData,
+  ChartOptions,
+  TooltipItem
 } from 'chart.js';
+import React from 'react';
+
+// Import TfIdfResult interface or define it here
+interface TfIdfResult {
+  term: string;
+  tfIdf: number;
+  averagePrice: number;
+  frequency: number;
+}
 
 ChartJS.register(
   CategoryScale,
@@ -22,8 +34,9 @@ interface PriceImpactChartProps {
   tfIdfResults: TfIdfResult[];
 }
 
-export function PriceImpactChart({ tfIdfResults }: PriceImpactChartProps) {
-  const data = {
+export function PriceImpactChart({ tfIdfResults }: PriceImpactChartProps): React.ReactElement {
+  // Properly type the chart data
+  const data: ChartData<'bar'> = {
     labels: tfIdfResults.map(result => result.term),
     datasets: [
       {
@@ -44,26 +57,27 @@ export function PriceImpactChart({ tfIdfResults }: PriceImpactChartProps) {
     ]
   };
 
-  const options = {
+  // Properly type the chart options
+  const options: ChartOptions<'bar'> = {
     responsive: true,
     interaction: {
-      mode: 'index' as const,
+      mode: 'index',
       intersect: false,
     },
     scales: {
       y: {
-        type: 'linear' as const,
+        type: 'linear',
         display: true,
-        position: 'left' as const,
+        position: 'left',
         title: {
           display: true,
           text: 'Average Price ($)'
         }
       },
       y1: {
-        type: 'linear' as const,
+        type: 'linear',
         display: true,
-        position: 'right' as const,
+        position: 'right',
         title: {
           display: true,
           text: 'Term Significance'
@@ -80,7 +94,7 @@ export function PriceImpactChart({ tfIdfResults }: PriceImpactChartProps) {
       },
       tooltip: {
         callbacks: {
-          label: (context: any) => {
+          label: (context: TooltipItem<'bar'>) => {
             const result = tfIdfResults[context.dataIndex];
             return [
               `Term: ${result.term}`,

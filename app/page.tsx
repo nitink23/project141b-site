@@ -408,14 +408,18 @@ export default function EbaySearch() {
       console.error("Auction search error:", error);
       
       // Handle specific error types
-      if (error.message === "SERVER_TIMEOUT" || error.message.includes("AbortError")) {
-        setError("The server took too long to respond. This usually happens when the server is starting up after being inactive. Please reload the page and try again if needed.");
-      } else if (error.message === "EMPTY_RESPONSE") {
-        setError("Received empty data from the server. Please reload the page and try again.");
-      } else if (error.message === "INVALID_FORMAT") {
-        setError("Received unexpected data format. Please reload the page and try again.");
+      if (error instanceof Error) {
+        if (error.message === "SERVER_TIMEOUT" || error.message.includes("AbortError")) {
+          setError("The server took too long to respond. This usually happens when the server is starting up after being inactive. Please reload the page and try again if needed.");
+        } else if (error.message === "EMPTY_RESPONSE") {
+          setError("Received empty data from the server. Please reload the page and try again.");
+        } else if (error.message === "INVALID_FORMAT") {
+          setError("Received unexpected data format. Please reload the page and try again.");
+        } else {
+          setError("Error fetching auction data. Please reload the page and try again.");
+        }
       } else {
-        setError("Error fetching auction data. Please reload the page and try again.");
+        setError("An unknown error occurred. Please reload the page and try again.");
       }
     } finally {
       clearInterval(progressInterval);
