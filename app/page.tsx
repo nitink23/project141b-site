@@ -332,6 +332,26 @@ export default function EbaySearch() {
   // Add a state to track errors
   const [error, setError] = useState<string | null>(null);
 
+  // Add countdown timer state
+  const [countdown, setCountdown] = useState<number | null>(null);
+
+  // Add useEffect for countdown timer
+  useEffect(() => {
+    let timer: NodeJS.Timeout | null = null;
+    
+    if (countdown !== null && countdown > 0) {
+      timer = setTimeout(() => {
+        setCountdown(countdown - 1);
+      }, 1000);
+    } else if (countdown === 0) {
+      window.location.reload();
+    }
+    
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [countdown]);
+
   // Modify the handleSearch function
   const handleSearch = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -410,16 +430,21 @@ export default function EbaySearch() {
       // Handle specific error types
       if (error instanceof Error) {
         if (error.message === "SERVER_TIMEOUT" || error.message.includes("AbortError")) {
-          setError("The server took too long to respond. This usually happens when the server is starting up after being inactive. Please reload the page and try again if needed.");
+          setError("The server is starting up. Please wait while we reload automatically.");
+          setCountdown(120); // 2 minutes countdown
         } else if (error.message === "EMPTY_RESPONSE") {
-          setError("Received empty data from the server. Please reload the page and try again.");
+          setError("Received empty data from the server. The server is starting up.");
+          setCountdown(120);
         } else if (error.message === "INVALID_FORMAT") {
-          setError("Received unexpected data format. Please reload the page and try again.");
+          setError("Received unexpected data format. The server is starting up.");
+          setCountdown(120);
         } else {
-          setError("Error fetching auction data. Please reload the page and try again.");
+          setError("Error fetching auction data. The server is starting up.");
+          setCountdown(120);
         }
       } else {
-        setError("An unknown error occurred. Please reload the page and try again.");
+        setError("An unknown error occurred. The server is starting up.");
+        setCountdown(120);
       }
     } finally {
       clearInterval(progressInterval);
@@ -430,7 +455,7 @@ export default function EbaySearch() {
         setLoadingProgress(0);
       }, 500);
     }
-  }, [searchTerm, setLoading, setLoadingProgress, setFilters, setCustomFilters, setSearchResults, setHasSearched]);
+  }, [searchTerm, setLoading, setLoadingProgress, setFilters, setCustomFilters, setSearchResults, setHasSearched, setCountdown]);
 
   const prepareHistogramData = useCallback((data: number[], bins: number, prefix = "") => {
     if (data.length === 0) return []
@@ -845,15 +870,32 @@ export default function EbaySearch() {
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 text-red-500">
               <div className="flex-1">
-                <p>{error} Reload the page this is becuase of server startup time</p>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="mt-2"
-                  onClick={() => window.location.reload()}
-                >
-                  Reload Page
-                </Button>
+                <p>{error}</p>
+                <p className="mt-2">
+                  The server is starting up. This page will automatically reload in {countdown} seconds.
+                </p>
+                <div className="mt-2 w-full bg-gray-200 rounded-full h-2.5">
+                  <div 
+                    className="bg-primary h-2.5 rounded-full" 
+                    style={{ width: `${((120 - (countdown || 0)) / 120) * 100}%` }}
+                  ></div>
+                </div>
+                <div className="flex justify-between mt-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => window.location.reload()}
+                  >
+                    Reload Now
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setCountdown(null)}
+                  >
+                    Cancel Countdown
+                  </Button>
+                </div>
               </div>
             </div>
           </CardContent>
